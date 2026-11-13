@@ -1,0 +1,6 @@
+{
+  "name": "ExportBridge AI",
+  "description": "Enterprise African agricultural export operations platform powered by 10 specialized AI agents and human-governed compliance workflows across 17 integrated modules.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
