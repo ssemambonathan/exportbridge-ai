@@ -361,4 +361,118 @@ router.post('/organisations/members', requireAuth, requirePermission('org:manage
   return res.status(201).json({ userId: newUserId, email: parsed.data.email.toLowerCase(), role: parsed.data.role });
 });
 
+router.post('/firebase-sync', authLimiter, async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Missing Firebase Bearer ID token.' });
+  }
+
+  const idToken = authHeader.split('Bearer ')[1];
+  try {
+    const { adminAuth } = await import('../../lib/firebase-admin.ts');
+    const decoded = await adminAuth.verifyIdToken(idToken);
+    if (!decoded.email) {
+      return res.status(400).json({ error: 'Verified email address is required from Google Sign-In.' });
+    }
+
+    const normalizedEmail = decoded.email.trim().toLowerCase();
+    const displayName = (decoded.name || normalizedEmail.split('@')[0] || 'Google Workspace Member').slice(0, 120);
+
+    // Sync user into Cloud SQL (PostgreSQL) lazily via Drizzle
+    try {
+      const { getOrCreateUser } = await import('../../db/users.ts');
+      await getOrCreateUser(decoded.uid, normalizedEmail, displayName);
+    } catch (sqlErr) {
+      console.error('Non-fatal Cloud SQL user sync notice:', sqlErr);
+    }
+
+    const db = getDb();
+    let user = db.prepare(`SELECT * FROM users WHERE email = ?`).get(normalizedEmail) as any;
+    let membership: any = null;
+
+    if (user) {
+      membership = db.prepare(`
+        SELECT m.role, o.id AS org_id, o.name AS org_name, o.type AS org_type, o.is_demo
+        FROM organisation_memberships m
+        JOIN organisations o ON o.id = m.organisation_id
+        WHERE m.user_id = ? AND o.status = 'active'
+        ORDER BY m.is_primary DESC, m.created_at ASC
+        LIMIT 1
+      `).get(user.id);
+    }
+
+    if (!user || !membership) {
+      const userId = user?.id || crypto.randomUUID();
+      const orgId = crypto.randomUUID();
+      const assignedRole: UserRole = normalizedEmail === 'aurthursir08@gmail.com' ? 'founder_admin' : 'supplier_admin';
+      const orgType = assignedRole === 'founder_admin' ? 'internal_ops' : 'supplier';
+
+      withTransaction((tx) => {
+        if (!user) {
+          tx.prepare(`
+            INSERT INTO users (id, email, full_name, password_hash, last_login_at)
+            VALUES (?, ?, ?, ?, datetime('now'))
+          `).run(userId, normalizedEmail, displayName, hashPassword(crypto.randomBytes(24).toString('hex')));
+        }
+        tx.prepare(`
+          INSERT INTO organisations (id, name, type, country, is_demo)
+          VALUES (?, ?, ?, ?, 0)
+        `).run(orgId, `${displayName} Workspace`, orgType, 'Uganda');
+        tx.prepare(`
+          INSERT INTO organisation_memberships (id, organisation_id, user_id, role, is_primary)
+          VALUES (?, ?, ?, ?, 1)
+        `).run(crypto.randomUUID(), orgId, userId, assignedRole);
+      });
+
+      user = db.prepare(`SELECT * FROM users WHERE id = ?`).get(userId);
+      membership = {
+        role: assignedRole,
+        org_id: orgId,
+        org_name: `${displayName} Workspace`,
+        org_type: orgType,
+        is_demo: 0,
+      };
+    }
+
+    const token = generateSessionToken();
+    const tokenHash = hashToken(token);
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    db.prepare(`UPDATE users SET last_login_at = datetime('now') WHERE id = ?`).run(user.id);
+    db.prepare(`
+      INSERT INTO sessions (id, user_id, organisation_id, token_hash, expires_at, ip_address, user_agent)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(crypto.randomUUID(), user.id, membership.org_id, tokenHash, expiresAt, req.ip || null, req.headers['user-agent'] || null);
+
+    recordAuditLog({
+      organisationId: membership.org_id,
+      actorUserId: user.id,
+      eventType: 'firebase_google_login',
+      entityType: 'user',
+      entityId: user.id,
+      action: `User ${normalizedEmail} authenticated via Firebase Google Sign-In`,
+      ipAddress: req.ip,
+    });
+
+    setSessionCookie(res, token);
+    return res.json({
+      token,
+      user: {
+        userId: user.id,
+        email: user.email,
+        fullName: user.full_name,
+        organisationId: membership.org_id,
+        organisationName: membership.org_name,
+        organisationType: membership.org_type,
+        role: membership.role,
+        isDemoUser: membership.is_demo === 1,
+      },
+    });
+  } catch (err) {
+    console.error('Firebase sync error:', err);
+    return res.status(401).json({ error: 'Unable to verify Firebase Google Sign-In token.' });
+  }
+});
+
 export default router;
+

@@ -71,7 +71,9 @@ export type ModuleKey =
   | 'ai_workforce'
   | 'approvals'
   | 'finance'
-  | 'audit_security';
+  | 'audit_security'
+  | 'gemini_chat'
+  | 'port_twin_3d';
 
 export interface QuotationCalculationInput {
   quantityKg: number;

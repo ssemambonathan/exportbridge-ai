@@ -1,0 +1,238 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isAdmin() {
+      return isVerifiedUser() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        request.auth.token.email == 'aurthursir08@gmail.com'
+      );
+    }
+
+    function isValidModel(m) {
+      return m is string && m.size() >= 3 && m.size() <= 40 && m in [
+        'gemini-4-hydrogen',
+        'gemini-3.1-flash-lite',
+        'gemini-4-argon',
+        'gemini-4-carbon'
+      ];
+    }
+
+    function isValidPersona(p) {
+      return p is string && p.size() >= 3 && p.size() <= 40 && p in [
+        'export_compliance',
+        'pricing_strategist',
+        'buyer_diligence',
+        'logistics_coordinator'
+      ];
+    }
+
+    function isValidUserPublicProfile(data, userId) {
+      return data.keys().hasAll(['uid', 'displayName', 'organisationName', 'role', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'displayName', 'organisationName', 'role', 'updatedAt'])
+        && data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 && data.uid == userId
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 120
+        && data.organisationName is string && data.organisationName.size() >= 1 && data.organisationName.size() <= 160
+        && data.role is string && data.role.size() >= 1 && data.role.size() <= 20 && data.role in ['member', 'operator']
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidUserPrivateProfile(data, userId) {
+      return data.keys().hasAll(['uid', 'email', 'preferredModel', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'preferredModel', 'createdAt', 'updatedAt'])
+        && data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 && data.uid == userId
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 200
+        && isValidModel(data.preferredModel)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidExportNote(data) {
+      return data.keys().hasAll(['ownerUid', 'title', 'commodityCode', 'targetMarket', 'content', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['ownerUid', 'title', 'commodityCode', 'targetMarket', 'content', 'status', 'createdAt', 'updatedAt'])
+        && data.ownerUid is string && data.ownerUid.size() >= 1 && data.ownerUid.size() <= 128
+        && data.title is string && data.title.size() >= 2 && data.title.size() <= 160
+        && data.commodityCode is string && data.commodityCode.size() >= 2 && data.commodityCode.size() <= 48
+        && data.targetMarket is string && data.targetMarket.size() >= 2 && data.targetMarket.size() <= 80
+        && data.content is string && data.content.size() >= 1 && data.content.size() <= 4000
+        && data.status is string && data.status.size() >= 4 && data.status.size() <= 16 && data.status in ['active', 'archived']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidChatThread(data) {
+      return data.keys().hasAll(['ownerUid', 'title', 'model', 'persona', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['ownerUid', 'title', 'model', 'persona', 'status', 'createdAt', 'updatedAt'])
+        && data.ownerUid is string && data.ownerUid.size() >= 1 && data.ownerUid.size() <= 128
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 160
+        && isValidModel(data.model)
+        && isValidPersona(data.persona)
+        && data.status is string && data.status.size() >= 4 && data.status.size() <= 16 && data.status in ['open', 'closed']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidChatMessage(data) {
+      return data.keys().hasAll(['ownerUid', 'role', 'content', 'model', 'createdAt'])
+        && data.keys().hasOnly(['ownerUid', 'role', 'content', 'model', 'createdAt'])
+        && data.ownerUid is string && data.ownerUid.size() >= 1 && data.ownerUid.size() <= 128
+        && data.role is string && data.role.size() >= 4 && data.role.size() <= 12 && data.role in ['user', 'model']
+        && data.content is string && data.content.size() >= 1 && data.content.size() <= 12000
+        && isValidModel(data.model)
+        && data.createdAt is timestamp;
+    }
+
+    match /admins/{adminUid} {
+      allow get: if isValidId(adminUid) && isOwner(adminUid);
+      allow list: if false;
+      allow create, update, delete: if false;
+    }
+
+    match /users/{userId}/public/profile {
+      allow get: if isValidId(userId) && isSignedIn();
+      allow list: if false;
+      allow create: if isValidId(userId) && isVerifiedUser() && isOwner(userId)
+        && isValidUserPublicProfile(incoming(), userId)
+        && incoming().role == 'member'
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(userId) && isVerifiedUser()
+        && isValidUserPublicProfile(incoming(), userId)
+        && (
+          isAdmin() || (
+            isOwner(userId)
+            && incoming().uid == existing().uid
+            && incoming().role == existing().role
+            && incoming().updatedAt == request.time
+            && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'organisationName', 'updatedAt'])
+          )
+        );
+      allow delete: if false;
+    }
+
+    match /users/{userId}/private/info {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if false;
+      allow create: if isValidId(userId) && isVerifiedUser() && isOwner(userId)
+        && isValidUserPrivateProfile(incoming(), userId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(userId) && isVerifiedUser()
+        && isValidUserPrivateProfile(incoming(), userId)
+        && (
+          isAdmin() || (
+            isOwner(userId)
+            && incoming().uid == existing().uid
+            && incoming().createdAt == existing().createdAt
+            && incoming().updatedAt == request.time
+            && incoming().diff(existing()).affectedKeys().hasOnly(['email', 'preferredModel', 'updatedAt'])
+          )
+        );
+      allow delete: if false;
+    }
+
+    match /export_notes/{noteId} {
+      allow get: if isValidId(noteId) && (isSignedIn() && (existing().ownerUid == request.auth.uid || isAdmin()));
+      allow list: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+      allow create: if isValidId(noteId) && isVerifiedUser()
+        && isValidExportNote(incoming())
+        && incoming().ownerUid == request.auth.uid
+        && incoming().status == 'active'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(noteId) && isVerifiedUser()
+        && isValidExportNote(incoming())
+        && (
+          isAdmin() || (
+            existing().ownerUid == request.auth.uid
+            && existing().status != 'archived'
+            && incoming().ownerUid == existing().ownerUid
+            && incoming().createdAt == existing().createdAt
+            && incoming().updatedAt == request.time
+            && (
+              (incoming().diff(existing()).affectedKeys().hasOnly(['title', 'commodityCode', 'targetMarket', 'content', 'updatedAt'])
+                && incoming().status == 'active') ||
+              (incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+                && incoming().status == 'archived')
+            )
+          )
+        );
+      allow delete: if isValidId(noteId) && isVerifiedUser()
+        && (existing().ownerUid == request.auth.uid || isAdmin());
+    }
+
+    match /chat_threads/{threadId} {
+      allow get: if isValidId(threadId) && isSignedIn()
+        && (existing().ownerUid == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+      allow create: if isValidId(threadId) && isVerifiedUser()
+        && isValidChatThread(incoming())
+        && incoming().ownerUid == request.auth.uid
+        && incoming().status == 'open'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(threadId) && isVerifiedUser()
+        && isValidChatThread(incoming())
+        && (
+          isAdmin() || (
+            existing().ownerUid == request.auth.uid
+            && existing().status != 'closed'
+            && incoming().ownerUid == existing().ownerUid
+            && incoming().createdAt == existing().createdAt
+            && incoming().updatedAt == request.time
+            && (
+              (incoming().diff(existing()).affectedKeys().hasOnly(['title', 'model', 'persona', 'updatedAt'])
+                && incoming().status == 'open') ||
+              (incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+                && incoming().status == 'closed')
+            )
+          )
+        );
+      allow delete: if isValidId(threadId) && isVerifiedUser()
+        && (existing().ownerUid == request.auth.uid || isAdmin());
+
+      match /messages/{messageId} {
+        allow get: if isValidId(threadId) && isValidId(messageId) && isSignedIn()
+          && get(/databases/$(database)/documents/chat_threads/$(threadId)).data.ownerUid == request.auth.uid;
+        allow list: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+        allow create: if isValidId(threadId) && isValidId(messageId) && isVerifiedUser()
+          && isValidChatMessage(incoming())
+          && incoming().ownerUid == request.auth.uid
+          && incoming().createdAt == request.time
+          && exists(/databases/$(database)/documents/chat_threads/$(threadId))
+          && get(/databases/$(database)/documents/chat_threads/$(threadId)).data.ownerUid == request.auth.uid
+          && get(/databases/$(database)/documents/chat_threads/$(threadId)).data.status == 'open';
+        allow update: if false;
+        allow delete: if isValidId(threadId) && isValidId(messageId) && isVerifiedUser()
+          && get(/databases/$(database)/documents/chat_threads/$(threadId)).data.ownerUid == request.auth.uid;
+      }
+    }
+  }
+}

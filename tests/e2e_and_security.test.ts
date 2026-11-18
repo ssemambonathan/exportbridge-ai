@@ -345,4 +345,36 @@ describe('ExportBridge AI — End-to-End Business Scenario & Security Suite', ()
     expect(cmd.data.metrics.quotationCount).toBeGreaterThanOrEqual(1);
     expect(cmd.data.metrics.pipelineValueUsd).toBeGreaterThan(0);
   });
+
+  it('enforces Firebase Bearer token protection on Cloud SQL & Firebase sync endpoints and validates Gemini chat models', async () => {
+    const unauthSql = await api('/api/cloudsql/notes');
+    expect(unauthSql.status).toBe(401);
+
+    const unauthSync = await api('/api/auth/firebase-sync', { method: 'POST' });
+    expect(unauthSync.status).toBe(401);
+
+    const unauthChat = await api('/api/chat', {
+      method: 'POST',
+      body: JSON.stringify({ message: 'Hello' }),
+    });
+    expect(unauthChat.status).toBe(401);
+
+    const personasRes = await api('/api/chat/personas', { token: founderToken });
+    expect(personasRes.status).toBe(200);
+    const modelIds = personasRes.data.models.map((m: any) => m.id);
+    expect(modelIds).toEqual([
+      'gemini-4-hydrogen',
+      'gemini-3.1-flash-lite',
+      'gemini-4-argon',
+      'gemini-4-carbon',
+    ]);
+
+    const invalidModelRes = await api('/api/chat', {
+      method: 'POST',
+      token: founderToken,
+      body: JSON.stringify({ message: 'Test', model: 'gemini-1.5-pro' }),
+    });
+    expect(invalidModelRes.status).toBe(400);
+  });
 });
+

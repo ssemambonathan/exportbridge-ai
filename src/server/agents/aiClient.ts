@@ -21,7 +21,7 @@ export function isGeminiConfigured(): boolean {
   return Boolean(key && key.trim().length > 10 && key !== 'MY_GEMINI_API_KEY');
 }
 
-function getGeminiClient(): GoogleGenAI {
+export function getGeminiClient(): GoogleGenAI {
   if (!isGeminiConfigured()) {
     throw new AiProviderUnavailableError(
       'GEMINI_API_KEY is not configured. Configure a valid server-side GEMINI_API_KEY to execute live AI agents.'

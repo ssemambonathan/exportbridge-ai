@@ -1,15 +1,20 @@
 import React, { useEffect, useState } from 'react';
+import { User } from 'firebase/auth';
 import { AuthSessionContext, ModuleKey } from './shared/types.ts';
 import { apiFetch } from './client/lib/api.ts';
+import { signOutFirebase, subscribeFirebaseAuth } from './lib/firebase.ts';
 import { AuthView } from './client/views/AuthView.tsx';
 import { FounderCommandView } from './client/views/FounderCommandView.tsx';
 import { SupplyModulesView } from './client/views/SupplyModulesView.tsx';
 import { BuyerModulesView } from './client/views/BuyerModulesView.tsx';
 import { CommercialModulesView } from './client/views/CommercialModulesView.tsx';
 import { GovernanceModulesView } from './client/views/GovernanceModulesView.tsx';
+import { ChatbotView } from './client/views/ChatbotView.tsx';
+import { Export3DShowcaseView } from './client/views/Export3DShowcaseView.tsx';
 import {
   Activity,
   Bot,
+  Box,
   Briefcase,
   Building2,
   Calculator,
@@ -22,6 +27,7 @@ import {
   Globe,
   LogOut,
   Menu,
+  MessageSquare,
   Package,
   ShieldAlert,
   ShieldCheck,
@@ -41,6 +47,7 @@ const NAV_GROUPS: NavGroup[] = [
       { key: 'founder_command', label: 'Founder Command', icon: Activity },
       { key: 'approvals', label: 'Human Approvals', icon: CheckSquare },
       { key: 'ai_workforce', label: 'AI Workforce (10)', icon: Bot },
+      { key: 'gemini_chat', label: 'Gemini Trade Copilot', icon: MessageSquare },
     ],
   },
   {
@@ -48,6 +55,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { key: 'suppliers', label: 'Suppliers', icon: Sprout },
       { key: 'products', label: 'Products & Lots', icon: Package },
+      { key: 'port_twin_3d', label: '3D Port & Lot Twin', icon: Box },
       { key: 'compliance', label: 'Export Compliance', icon: FileCheck2 },
       { key: 'documents', label: 'Document Vault', icon: FolderLock },
     ],
@@ -83,15 +91,20 @@ const ALL_ITEMS = NAV_GROUPS.flatMap((g) => g.items);
 
 export default function App() {
   const [user, setUser] = useState<AuthSessionContext | null>(null);
+  const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [activeModule, setActiveModule] = useState<ModuleKey>('founder_command');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
+    const unsub = subscribeFirebaseAuth((fbUser) => {
+      setFirebaseUser(fbUser);
+    });
     apiFetch<{ user: AuthSessionContext }>('/api/auth/me')
       .then((res) => setUser(res.user))
       .catch(() => setUser(null))
       .finally(() => setCheckingAuth(false));
+    return () => unsub();
   }, []);
 
   async function handleLogout() {
@@ -99,6 +112,11 @@ export default function App() {
       await apiFetch('/api/auth/logout', { method: 'POST' });
     } catch {
       // clear local session regardless
+    }
+    try {
+      await signOutFirebase();
+    } catch {
+      // ignore firebase signout error if not signed into firebase
     }
     setUser(null);
   }
@@ -121,6 +139,15 @@ export default function App() {
     switch (activeModule) {
       case 'founder_command':
         return <FounderCommandView onNavigate={setActiveModule} />;
+      case 'gemini_chat':
+        return (
+          <ChatbotView
+            firebaseUser={firebaseUser}
+            organisationName={user!.organisationName}
+          />
+        );
+      case 'port_twin_3d':
+        return <Export3DShowcaseView />;
       case 'suppliers':
       case 'products':
         return <SupplyModulesView activeTab={activeModule} />;

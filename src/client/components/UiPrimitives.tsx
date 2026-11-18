@@ -147,3 +147,29 @@ export function Modal({
     </div>
   );
 }
+
+export function SectionCard({
+  title,
+  subtitle,
+  actions,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  actions?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="bg-white border border-[#E5DEC9] rounded-lg p-5">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 pb-4 border-b border-[#E5DEC9]">
+        <div>
+          <h2 className="text-base font-semibold text-[#1C1F1E]">{title}</h2>
+          {subtitle ? <p className="text-xs text-[#666D6A] mt-0.5">{subtitle}</p> : null}
+        </div>
+        {actions ? <div className="shrink-0">{actions}</div> : null}
+      </div>
+      <div className="pt-4">{children}</div>
+    </section>
+  );
+}
+

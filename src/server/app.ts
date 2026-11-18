@@ -8,6 +8,8 @@ import supplyRoutes from './routes/supplyRoutes.ts';
 import buyerRoutes from './routes/buyerRoutes.ts';
 import commercialRoutes from './routes/commercialRoutes.ts';
 import governanceRoutes from './routes/governanceRoutes.ts';
+import cloudSqlRoutes from './routes/cloudSqlRoutes.ts';
+import chatRoutes from './routes/chatRoutes.ts';
 import { isGeminiConfigured } from './agents/aiClient.ts';
 import { checkSupabaseStatus } from './db/supabaseClient.ts';
 
@@ -59,6 +61,8 @@ export function createApp(options?: { seedDemo?: boolean }) {
   app.use('/api', buyerRoutes);
   app.use('/api', commercialRoutes);
   app.use('/api', governanceRoutes);
+  app.use('/api/cloudsql', cloudSqlRoutes);
+  app.use('/api/chat', chatRoutes);
 
   // 404 handler for unknown API routes
   app.use('/api', (_req, res) => {

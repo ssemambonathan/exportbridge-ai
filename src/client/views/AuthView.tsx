@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { AuthSessionContext } from '../../shared/types.ts';
 import { apiFetch } from '../lib/api.ts';
+import { signInWithGooglePopup, syncFirebaseUserProfiles } from '../../lib/firebase.ts';
 import { ErrorBanner, SuccessBanner } from '../components/UiPrimitives.tsx';
 import { ArrowRight, ShieldCheck } from 'lucide-react';
 
@@ -24,6 +25,28 @@ export function AuthView({ onAuthenticated }: { onAuthenticated: (user: AuthSess
   // Password reset state
   const [resetToken, setResetToken] = useState('');
   const [newPassword, setNewPassword] = useState('');
+
+  async function handleGoogleSignIn() {
+    setError(null);
+    setLoading(true);
+    try {
+      const { user: fbUser, idToken } = await signInWithGooglePopup();
+      const res = await apiFetch<{ user: AuthSessionContext }>('/api/auth/firebase-sync', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${idToken}`,
+        },
+      });
+      await syncFirebaseUserProfiles(fbUser, res.user.organisationName).catch((e) => {
+        console.warn('Profile sync warning:', e);
+      });
+      onAuthenticated(res.user);
+    } catch (err: any) {
+      setError(err?.message || 'Google Sign-In failed or was cancelled.');
+    } finally {
+      setLoading(false);
+    }
+  }
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -240,6 +263,15 @@ export function AuthView({ onAuthenticated }: { onAuthenticated: (user: AuthSess
               >
                 <span>{loading ? 'Authenticating...' : 'Sign In'}</span>
                 <ArrowRight className="w-4 h-4" />
+              </button>
+
+              <button
+                type="button"
+                disabled={loading}
+                onClick={handleGoogleSignIn}
+                className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-white border border-[#D9D3C4] text-[#1C1F1E] text-sm font-medium rounded-md hover:bg-[#FAF8F3] disabled:opacity-50 transition-colors"
+              >
+                <span>Continue with Google</span>
               </button>
 
               {/* Explicitly labelled Demonstration Accounts */}

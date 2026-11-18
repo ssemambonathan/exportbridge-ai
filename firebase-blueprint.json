@@ -1,0 +1,248 @@
+{
+  "entities": {
+    "UserPublicProfile": {
+      "title": "UserPublicProfile",
+      "description": "Non-sensitive display identity for an authenticated ExportBridge AI workspace member.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "organisationName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "role": {
+          "type": "string",
+          "enum": ["member", "operator"]
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "displayName", "organisationName", "role", "updatedAt"]
+    },
+    "UserPrivateProfile": {
+      "title": "UserPrivateProfile",
+      "description": "Isolated PII profile document restricted strictly to the owning user or verified admin.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "minLength": 3,
+          "maxLength": 200
+        },
+        "preferredModel": {
+          "type": "string",
+          "enum": [
+            "gemini-4-hydrogen",
+            "gemini-3.1-flash-lite",
+            "gemini-4-argon",
+            "gemini-4-carbon"
+          ]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "email", "preferredModel", "createdAt", "updatedAt"]
+    },
+    "ExportWorkspaceNote": {
+      "title": "ExportWorkspaceNote",
+      "description": "User-scoped export trade dossier note persisted in Firestore.",
+      "type": "object",
+      "properties": {
+        "ownerUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 160
+        },
+        "commodityCode": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 48
+        },
+        "targetMarket": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 80
+        },
+        "content": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active", "archived"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["ownerUid", "title", "commodityCode", "targetMarket", "content", "status", "createdAt", "updatedAt"]
+    },
+    "ChatbotThread": {
+      "title": "ChatbotThread",
+      "description": "Persistent multi-turn Gemini AI Copilot thread metadata.",
+      "type": "object",
+      "properties": {
+        "ownerUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "model": {
+          "type": "string",
+          "enum": [
+            "gemini-4-hydrogen",
+            "gemini-3.1-flash-lite",
+            "gemini-4-argon",
+            "gemini-4-carbon"
+          ]
+        },
+        "persona": {
+          "type": "string",
+          "enum": [
+            "export_compliance",
+            "pricing_strategist",
+            "buyer_diligence",
+            "logistics_coordinator"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": ["open", "closed"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["ownerUid", "title", "model", "persona", "status", "createdAt", "updatedAt"]
+    },
+    "ChatbotMessage": {
+      "title": "ChatbotMessage",
+      "description": "Individual turn within a Gemini AI Copilot thread.",
+      "type": "object",
+      "properties": {
+        "ownerUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["user", "model"]
+        },
+        "content": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 12000
+        },
+        "model": {
+          "type": "string",
+          "enum": [
+            "gemini-4-hydrogen",
+            "gemini-3.1-flash-lite",
+            "gemini-4-argon",
+            "gemini-4-carbon"
+          ]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["ownerUid", "role", "content", "model", "createdAt"]
+    },
+    "AdminRecord": {
+      "title": "AdminRecord",
+      "description": "Server-managed administrator role grant marker.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "grantedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "grantedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/public/profile": {
+      "schema": { "$ref": "#/entities/UserPublicProfile" },
+      "description": "Non-PII display profile for workspace members."
+    },
+    "/users/{userId}/private/info": {
+      "schema": { "$ref": "#/entities/UserPrivateProfile" },
+      "description": "Owner-only PII record containing verified email and model preference."
+    },
+    "/export_notes/{noteId}": {
+      "schema": { "$ref": "#/entities/ExportWorkspaceNote" },
+      "description": "Owner-scoped export operations notes and commodity checklists."
+    },
+    "/chat_threads/{threadId}": {
+      "schema": { "$ref": "#/entities/ChatbotThread" },
+      "description": "Multi-turn Gemini Copilot conversation threads owned by a verified user."
+    },
+    "/chat_threads/{threadId}/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/ChatbotMessage" },
+      "description": "Sequential user and assistant messages nested under an owned chat thread."
+    },
+    "/admins/{adminUid}": {
+      "schema": { "$ref": "#/entities/AdminRecord" },
+      "description": "Read-only admin registry managed strictly out-of-band."
+    }
+  }
+}
